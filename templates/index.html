@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>QuickShare</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', sans-serif; background: #f0f4f8; min-height: 100vh; display: flex; flex-direction: column; align-items: center; padding: 40px 16px; }
+    h1 { font-size: 2rem; color: #2d3748; margin-bottom: 8px; }
+    p.sub { color: #718096; margin-bottom: 32px; }
+    .card { background: white; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); padding: 32px; width: 100%; max-width: 520px; }
+    .upload-area { border: 2px dashed #cbd5e0; border-radius: 8px; padding: 32px; text-align: center; cursor: pointer; transition: border-color 0.2s; }
+    .upload-area:hover { border-color: #667eea; }
+    .upload-area input[type=file] { display: none; }
+    .upload-area label { cursor: pointer; color: #667eea; font-weight: 600; }
+    .upload-area p { color: #a0aec0; font-size: 0.85rem; margin-top: 6px; }
+    #file-name { margin-top: 10px; font-size: 0.9rem; color: #4a5568; }
+    button[type=submit] { margin-top: 16px; width: 100%; padding: 12px; background: #667eea; color: white; border: none; border-radius: 8px; font-size: 1rem; font-weight: 600; cursor: pointer; transition: background 0.2s; }
+    button[type=submit]:hover { background: #5a67d8; }
+
+    /* QR Section */
+    .qr-card { background: white; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); padding: 24px 32px; width: 100%; max-width: 520px; margin-bottom: 24px; display: flex; align-items: center; gap: 24px; }
+    .qr-card img { width: 110px; height: 110px; border-radius: 8px; border: 1px solid #e2e8f0; }
+    .qr-info h3 { color: #2d3748; font-size: 1rem; margin-bottom: 6px; }
+    .qr-info p { color: #718096; font-size: 0.85rem; margin-bottom: 10px; }
+    .qr-info a { font-size: 0.85rem; color: #667eea; font-weight: 600; word-break: break-all; }
+
+    .files-section { margin-top: 32px; width: 100%; max-width: 520px; }
+    .files-section h2 { font-size: 1.1rem; color: #4a5568; margin-bottom: 12px; }
+    .file-item { background: white; border-radius: 8px; padding: 14px 16px; display: flex; align-items: center; justify-content: space-between; box-shadow: 0 2px 8px rgba(0,0,0,0.06); margin-bottom: 10px; }
+    .file-item span { font-size: 0.95rem; color: #2d3748; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 45%; }
+    .actions { display: flex; gap: 8px; }
+    .btn { padding: 6px 14px; border-radius: 6px; font-size: 0.82rem; font-weight: 600; cursor: pointer; border: none; text-decoration: none; }
+    .btn-copy { background: #ebf4ff; color: #3182ce; }
+    .btn-copy:hover { background: #bee3f8; }
+    .btn-dl { background: #e6fffa; color: #2c7a7b; }
+    .btn-dl:hover { background: #b2f5ea; }
+    .btn-del { background: #fff5f5; color: #e53e3e; }
+    .btn-del:hover { background: #fed7d7; }
+    .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: #2d3748; color: white; padding: 10px 22px; border-radius: 8px; font-size: 0.9rem; opacity: 0; transition: opacity 0.3s; pointer-events: none; }
+    .toast.show { opacity: 1; }
+  </style>
+</head>
+<body>
+  <h1>⚡ QuickShare</h1>
+  <p class="sub">Upload a file and share it instantly</p>
+
+  <!-- QR Code Banner -->
+  <div class="qr-card">
+    <img src="/qr" alt="QR Code"/>
+    <div class="qr-info">
+      <h3>📱 Connect from another device</h3>
+      <p>Both devices must be on the same WiFi network.</p>
+      <a href="{{ network_url }}" target="_blank">{{ network_url }}</a>
+    </div>
+  </div>
+
+  <div class="card">
+    <form method="POST" action="/upload" enctype="multipart/form-data">
+      <div class="upload-area" onclick="document.getElementById('fileInput').click()">
+        <label>Click to choose a file</label>
+        <p>or drag and drop</p>
+        <input type="file" id="fileInput" name="file" required onchange="showName(this)"/>
+        <div id="file-name"></div>
+      </div>
+      <button type="submit">Upload &amp; Share</button>
+    </form>
+  </div>
+
+  {% if files %}
+  <div class="files-section">
+    <h2>Shared Files</h2>
+    {% for f in files %}
+    <div class="file-item">
+      <span title="{{ f.name }}">📄 {{ f.name }}</span>
+      <div class="actions">
+        <button class="btn btn-copy" onclick="showModal('{{ network_url }}/share/{{ f.token }}')">Share Link</button>
+        <a class="btn btn-dl" href="/download/{{ f.token }}">Download</a>
+        <form method="POST" action="/delete/{{ f.token }}" style="margin:0">
+          <button class="btn btn-del" type="submit">Delete</button>
+        </form>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <div class="toast" id="toast">🔗 Link copied!</div>
+  <div id="share-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:100;align-items:center;justify-content:center">
+    <div style="background:white;border-radius:12px;padding:24px;max-width:400px;width:90%;">
+      <p style="font-size:0.85rem;color:#718096;margin-bottom:8px">Share this link:</p>
+      <input id="share-url" readonly style="width:100%;padding:10px;border:1px solid #e2e8f0;border-radius:6px;font-size:0.9rem;color:#2d3748" />
+      <div style="display:flex;gap:8px;margin-top:12px">
+        <button onclick="doModalCopy()" style="flex:1;padding:10px;background:#667eea;color:white;border:none;border-radius:6px;font-weight:600;cursor:pointer">Copy</button>
+        <button onclick="closeModal()" style="flex:1;padding:10px;background:#f7fafc;color:#4a5568;border:1px solid #e2e8f0;border-radius:6px;font-weight:600;cursor:pointer">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function showName(input) {
+      document.getElementById('file-name').textContent = input.files[0]?.name || '';
+    }
+    function showModal(url) {
+      document.getElementById('share-url').value = url;
+      const m = document.getElementById('share-modal');
+      m.style.display = 'flex';
+    }
+    function closeModal() {
+      document.getElementById('share-modal').style.display = 'none';
+    }
+    function doModalCopy() {
+      const el = document.getElementById('share-url');
+      el.select();
+      document.execCommand('copy');
+      closeModal();
+      const t = document.getElementById('toast');
+      t.classList.add('show');
+      setTimeout(() => t.classList.remove('show'), 2000);
+    }
+    function copyLink(url) {
+      if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(url);
+      } else {
+        const el = document.createElement('textarea');
+        el.value = url;
+        el.style.position = 'fixed';
+        el.style.opacity = '0';
+        document.body.appendChild(el);
+        el.select();
+        document.execCommand('copy');
+        document.body.removeChild(el);
+      }
+      const t = document.getElementById('toast');
+      t.classList.add('show');
+      setTimeout(() => t.classList.remove('show'), 2000);
+    }
+  </script>
+</body>
+</html>

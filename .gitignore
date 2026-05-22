@@ -1,0 +1,7 @@
+uploads/
+files.json
+__pycache__/
+*.pyc
+.env
+desktop.ini
+*.env
